@@ -27,7 +27,7 @@ export class UsersService {
       });
       return users;
     } catch (error) {
-      this.logger.error('Failed to fetch users', error);
+      this.logger.error('Failed to fetch users', String(error));
       throw new InternalServerErrorException('Something went wrong');
     }
   }
@@ -43,7 +43,7 @@ export class UsersService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Failed to fetch user with id ${id}`, error);
+      this.logger.error(`Failed to fetch user with id ${id}`, String(error));
       throw new InternalServerErrorException('Something went wrong');
     }
   }
@@ -59,7 +59,7 @@ export class UsersService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Failed to update user with id ${id}`, error);
+      this.logger.error(`Failed to update user with id ${id}`, String(error));
       throw new InternalServerErrorException('Something went wrong');
     }
   }

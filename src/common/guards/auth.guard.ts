@@ -9,14 +9,7 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import { TokenService } from 'src/modules/auth/token.service';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { Request } from 'express';
-
-interface RequestWithUser extends Request {
-  user?: {
-    id: number;
-    isAdmin?: boolean;
-  };
-}
+import { RequestWithAuth } from '../interfaces';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -34,21 +27,11 @@ export class AuthGuard implements CanActivate {
     ]);
 
     const gqlContext = GqlExecutionContext.create(context);
-    const { req } = gqlContext.getContext<{ req: RequestWithUser }>();
+    const { req } = gqlContext.getContext<{ req: RequestWithAuth }>();
 
-    const authHeader = req.headers['authorization'];
+    const access_token = req.cookies?.access_token;
 
-    if (!authHeader) {
-      if (isPublic) {
-        return true;
-      }
-      this.logger.warn(`Unauthorized access attempt: No authorization header`);
-      throw new UnauthorizedException('Session has expired.');
-    }
-
-    const [bearer, access_token] = authHeader.split(' ');
-
-    if (bearer !== 'Bearer' || !access_token) {
+    if (!access_token) {
       if (isPublic) {
         return true;
       }

@@ -1,3 +1,4 @@
+import { FastifyReply, FastifyRequest } from 'fastify';
 import { Module } from '@nestjs/common';
 import { AuthModule } from './modules/auth/auth.module';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
@@ -21,6 +22,12 @@ import { AppI18nModule } from './i18n/i18n.module';
       driver: ApolloDriver,
       autoSchemaFile: true,
       playground: true,
+      context: async (request: FastifyRequest, reply: FastifyReply) => {
+        return {
+          req: request,
+          res: reply,
+        };
+      },
     }),
     ScheduleModule.forRoot(),
     ServeStaticModule.forRoot({

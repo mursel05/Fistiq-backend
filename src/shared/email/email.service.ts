@@ -63,7 +63,7 @@ export class EmailService {
   ): Promise<SentMessageInfo> {
     try {
       const info: unknown = await this.transporter.sendMail({
-        from: `"Constant In" <${this.configService.get('email.user')}>`,
+        from: `"Fistiq" <${this.configService.get('email.user')}>`,
         to,
         subject,
         html,

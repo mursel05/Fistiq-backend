@@ -6,4 +6,7 @@ export default registerAs('app', () => ({
   apiPrefix: process.env.API_PREFIX,
   clientUrl: process.env.CLIENT_URL,
   baseUrl: process.env.BASE_URL,
+  cookieSecret: process.env.COOKIE_SECRET,
+  cookieDomain: process.env.COOKIE_DOMAIN,
+  cookiePath: process.env.COOKIE_PATH,
 }));

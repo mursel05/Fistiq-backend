@@ -9,6 +9,7 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
+import fastifyCookie from '@fastify/cookie';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -71,6 +72,9 @@ async function bootstrap() {
     );
     const configService = app.get(ConfigService);
 
+    await app.register(fastifyCookie, {
+      secret: configService.get<string>('app.cookieSecret') as string,
+    });
     app.setGlobalPrefix(configService.get<string>('app.apiPrefix') as string);
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true }),
@@ -79,6 +83,7 @@ async function bootstrap() {
       origin: configService.get<string>('app.clientUrl'),
       credentials: true,
     });
+
     await app.register(helmet, {
       contentSecurityPolicy: {
         directives: {

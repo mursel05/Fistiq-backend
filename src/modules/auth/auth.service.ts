@@ -1,3 +1,4 @@
+import { FastifyReply } from 'fastify';
 import {
   Injectable,
   InternalServerErrorException,
@@ -16,13 +17,11 @@ import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
-import type { Request } from 'express';
 import { EmailService } from 'src/shared/email/email.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { MutationResponse } from 'src/common/dto/mutation-response.dto';
-import { AuthResponse } from './dto/token-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -35,6 +34,33 @@ export class AuthService {
     private configService: ConfigService,
     private emailService: EmailService,
   ) {}
+
+  private configureCookies(
+    response: FastifyReply,
+    tokens: { accessToken: string; refreshToken: string },
+  ): void {
+    const isProduction =
+      this.configService.get<string>('app.nodeEnv') === 'production';
+    const cookieOptions = isProduction
+      ? {
+          httpOnly: true,
+          sameSite: 'none' as const,
+          secure: true,
+        }
+      : {};
+    response.setCookie('access_token', tokens.accessToken, {
+      ...cookieOptions,
+      maxAge: Number(
+        this.configService.get<string>('auth.accessTokenExpiryMs'),
+      ),
+    });
+    response.setCookie('refresh_token', tokens.refreshToken, {
+      ...cookieOptions,
+      maxAge: Number(
+        this.configService.get<string>('auth.refreshTokenExpiryMs'),
+      ),
+    });
+  }
 
   private async generateResetCode(): Promise<number> {
     try {
@@ -49,12 +75,15 @@ export class AuthService {
 
       return resetCode;
     } catch (error) {
-      this.logger.error('Error generating reset code', error);
+      this.logger.error('Error generating reset code', String(error));
       throw new InternalServerErrorException('Failed to generate reset code');
     }
   }
 
-  async register(registerDto: RegisterDto): Promise<AuthResponse> {
+  async register(
+    registerDto: RegisterDto,
+    response: FastifyReply,
+  ): Promise<MutationResponse> {
     try {
       this.logger.debug(`Registration attempt for email: ${registerDto.email}`);
 
@@ -83,13 +112,14 @@ export class AuthService {
         sub: user.id,
       });
 
+      this.configureCookies(response, tokens);
+
       this.logger.log(
         `User registered successfully: ${user.id} (${user.email})`,
       );
-      console.log(tokens);
+
       return {
         success: true,
-        data: tokens,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -97,12 +127,18 @@ export class AuthService {
         throw error;
       }
 
-      this.logger.error(`Registration failed for ${registerDto.email}`, error);
+      this.logger.error(
+        `Registration failed for ${registerDto.email}`,
+        String(error),
+      );
       throw new InternalServerErrorException('Failed to register user');
     }
   }
 
-  async login(loginDto: LoginDto): Promise<AuthResponse> {
+  async login(
+    loginDto: LoginDto,
+    response: FastifyReply,
+  ): Promise<MutationResponse> {
     try {
       this.logger.debug(`Login attempt for email: ${loginDto.email}`);
 
@@ -141,10 +177,12 @@ export class AuthService {
         sub: user.id,
       });
 
+      this.configureCookies(response, tokens);
+
       this.logger.log(`User logged in successfully: ${user.id}`);
+
       return {
         success: true,
-        data: tokens,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -155,7 +193,7 @@ export class AuthService {
         throw error;
       }
 
-      this.logger.error(`Login failed for ${loginDto.email}`, error);
+      this.logger.error(`Login failed for ${loginDto.email}`, String(error));
       throw new InternalServerErrorException('Failed to process login');
     }
   }
@@ -197,7 +235,7 @@ export class AuthService {
 
       const resetCode = await this.generateResetCode();
       user.resetCode = resetCode;
-      user.resetCodeExpiry = new Date(Date.now() + 2 * 60 * 1000);
+      user.resetCodeExpiry = new Date(Date.now() + 12 * 60 * 1000);
       await this.usersRepo.save(user);
 
       void this.emailService.sendResetCode(forgotPasswordDto.email, resetCode);
@@ -211,7 +249,8 @@ export class AuthService {
       if (
         error instanceof NotFoundException ||
         error instanceof ForbiddenException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException
       ) {
         throw error;
       }
@@ -223,6 +262,37 @@ export class AuthService {
       throw new InternalServerErrorException(
         'Failed to process password reset request',
       );
+    }
+  }
+
+  async verifyCode(code: number): Promise<MutationResponse> {
+    try {
+      this.logger.debug(`Verifying reset code: ${code}`);
+      const user = await this.usersRepo.findOne({
+        where: { resetCode: code },
+      });
+
+      if (!user) {
+        this.logger.warn(`Verify code: Invalid code - ${code}`);
+        throw new BadRequestException('Invalid or expired reset code');
+      }
+
+      if (!user.resetCodeExpiry || user.resetCodeExpiry < new Date()) {
+        this.logger.warn(`Verify code: Expired code - ${user.id}`);
+        throw new BadRequestException('Invalid or expired reset code');
+      }
+
+      return {
+        success: true,
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      this.logger.error(`Failed to verify reset code: ${code}`, error);
+      throw new InternalServerErrorException('Failed to verify reset code');
     }
   }
 
@@ -263,7 +333,6 @@ export class AuthService {
       this.logger.log(`Password reset successfully for user: ${user.id}`);
       return {
         success: true,
-        message: 'Password reset successfully',
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -271,16 +340,24 @@ export class AuthService {
         throw error;
       }
 
-      this.logger.error('Failed to reset password', error);
+      this.logger.error('Failed to reset password', String(error));
       throw new InternalServerErrorException('Failed to reset password');
     }
   }
 
-  async logout(user: User): Promise<MutationResponse> {
+  async logout(user: User, response: FastifyReply): Promise<MutationResponse> {
     try {
       this.logger.debug(`Logout request for user: ${user.id}`);
 
       await this.tokenService.removeToken(user.id);
+
+      const cookieOptions = {
+        domain: this.configService.get<string>('app.cookieDomain'),
+        path: this.configService.get<string>('app.cookiePath'),
+      };
+
+      response.clearCookie('refresh_token', cookieOptions);
+      response.clearCookie('access_token', cookieOptions);
 
       this.logger.log(`User logged out successfully: ${user.id}`);
       return {
@@ -288,12 +365,15 @@ export class AuthService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error(`Logout failed for user: ${user.id}`, error);
+      this.logger.error(`Logout failed for user: ${user.id}`, String(error));
       throw new InternalServerErrorException('Failed to logout');
     }
   }
 
-  async refreshTokens(refreshToken: string): Promise<AuthResponse> {
+  async refreshTokens(
+    refreshToken: string,
+    response: FastifyReply,
+  ): Promise<MutationResponse> {
     try {
       const payload = this.tokenService.validateRefreshToken(refreshToken);
 
@@ -320,15 +400,14 @@ export class AuthService {
         sub: user.id,
       });
 
+      this.configureCookies(response, tokens);
+
       this.logger.log(`Tokens refreshed successfully for user: ${user.id}`);
       return {
         success: true,
-        data: tokens,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.log(error);
-
       if (
         error instanceof UnauthorizedException ||
         error instanceof ForbiddenException
@@ -336,7 +415,7 @@ export class AuthService {
         throw error;
       }
 
-      this.logger.error('Failed to refresh tokens', error);
+      this.logger.error('Failed to refresh tokens', String(error));
       throw new InternalServerErrorException('Failed to refresh tokens');
     }
   }

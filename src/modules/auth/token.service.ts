@@ -100,7 +100,7 @@ export class TokenService {
         expiresAt: LessThan(new Date()),
       });
     } catch (error) {
-      this.logger.error('Failed to cleanup expired tokens', error);
+      this.logger.error('Failed to cleanup expired tokens', String(error));
     }
   }
 }
