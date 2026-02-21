@@ -50,6 +50,7 @@ import { AppI18nModule } from './i18n/i18n.module';
         database: config.get('database.database'),
         autoLoadEntities: true,
         synchronize: true,
+        ssl: config.get('database.ssl'),
       }),
     }),
 
