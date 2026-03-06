@@ -15,6 +15,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import emailConfig from './config/email.config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AppI18nModule } from './i18n/i18n.module';
+import { VideoModule } from './modules/video/video.module.';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { AppI18nModule } from './i18n/i18n.module';
 
     AuthModule,
     UsersModule,
+    VideoModule,
     EmailModule,
     AppI18nModule,
   ],

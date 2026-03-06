@@ -8,10 +8,10 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { MutationResponse } from 'src/common/dto/mutation-response.dto';
 import { UseGuards } from '@nestjs/common';
-import type { RequestWithAuth } from 'src/common/interfaces';
 import { VerifyCodeDto } from './dto/verify-code.dto';
 import { AuthGuard } from 'src/common/guards/auth.guard';
 import { User } from '../users/entities/user.entity';
+import { RequestWithAuth } from 'src/common/interfaces/request-with-auth.interface';
 
 @Resolver(() => User)
 export class AuthResolver {

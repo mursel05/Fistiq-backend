@@ -9,7 +9,7 @@ import { GqlExecutionContext } from '@nestjs/graphql';
 import { TokenService } from 'src/modules/auth/token.service';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import { RequestWithAuth } from '../interfaces';
+import { RequestWithAuth } from '../interfaces/request-with-auth.interface';
 
 @Injectable()
 export class AuthGuard implements CanActivate {

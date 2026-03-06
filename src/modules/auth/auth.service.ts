@@ -351,13 +351,8 @@ export class AuthService {
 
       await this.tokenService.removeToken(user.id);
 
-      const cookieOptions = {
-        domain: this.configService.get<string>('app.cookieDomain'),
-        path: this.configService.get<string>('app.cookiePath'),
-      };
-
-      response.clearCookie('refresh_token', cookieOptions);
-      response.clearCookie('access_token', cookieOptions);
+      response.clearCookie('refresh_token');
+      response.clearCookie('access_token');
 
       this.logger.log(`User logged out successfully: ${user.id}`);
       return {
